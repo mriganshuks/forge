@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { CheckCircle2, CreditCard, Download } from "lucide-react";
 
-export const Route = createFileRoute("/billing")({
+export const Route = createFileRoute("/_authenticated/billing")({
   head: () => ({ meta: [{ title: "Billing — Forge" }] }),
   component: BillingPage,
 });

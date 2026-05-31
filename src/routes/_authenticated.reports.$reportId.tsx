@@ -8,7 +8,7 @@ import {
   ArrowLeft, Download, Share2, CheckCircle2, AlertTriangle, Target, Users, LineChart, Layers,
 } from "lucide-react";
 
-export const Route = createFileRoute("/reports/$reportId")({
+export const Route = createFileRoute("/_authenticated/reports/$reportId")({
   head: () => ({ meta: [{ title: "Report — Forge" }] }),
   component: ReportPage,
 });

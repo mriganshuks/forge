@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, FileText, Zap, Crown, Clock, ArrowUpRight, TrendingUp } from "lucide-react";
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Forge" }] }),
   component: DashboardPage,
 });
