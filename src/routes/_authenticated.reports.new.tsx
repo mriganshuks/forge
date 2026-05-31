@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ArrowRight, Zap } from "lucide-react";
 
-export const Route = createFileRoute("/reports/new")({
+export const Route = createFileRoute("/_authenticated/reports/new")({
   head: () => ({ meta: [{ title: "New report — Forge" }] }),
   component: NewReportPage,
 });
