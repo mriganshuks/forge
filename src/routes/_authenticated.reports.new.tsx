@@ -1,4 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
 import { AppShell } from "@/components/forge/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ArrowRight, Zap } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/reports/new")({
   head: () => ({ meta: [{ title: "New report — Forge" }] }),
@@ -16,6 +21,41 @@ export const Route = createFileRoute("/_authenticated/reports/new")({
 
 function NewReportPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [title, setTitle] = useState("");
+  const [idea, setIdea] = useState("");
+  const [market, setMarket] = useState("");
+  const [depth, setDepth] = useState("deep");
+
+  const createReport = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("reports")
+        .insert({
+          user_id: user.id,
+          title,
+          idea,
+          target_market: market || null,
+          status: "draft",
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    onSuccess: (id) => {
+      toast.success("Report created");
+      navigate({ to: "/reports/$reportId", params: { reportId: id } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    createReport.mutate();
+  };
+
   return (
     <AppShell>
       <div className="px-6 md:px-10 py-10 max-w-3xl mx-auto">
@@ -28,13 +68,10 @@ function NewReportPage() {
         </div>
 
         <Card className="mt-8 p-6 bg-gradient-card border-border/60">
-          <form
-            className="space-y-6"
-            onSubmit={(e) => { e.preventDefault(); navigate({ to: "/reports/$reportId", params: { reportId: "r-new" } }); }}
-          >
+          <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="title">Idea title</Label>
-              <Input id="title" placeholder="e.g. AI fitness coach for busy professionals" required />
+              <Input id="title" placeholder="e.g. AI fitness coach for busy professionals" required value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="desc">Describe the idea</Label>
@@ -43,17 +80,19 @@ function NewReportPage() {
                 rows={6}
                 placeholder="What is it? Who is it for? What's the wedge? Anything we should know..."
                 required
+                value={idea}
+                onChange={(e) => setIdea(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">Tip: the more specific, the sharper the report.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="market">Target market (optional)</Label>
-              <Input id="market" placeholder="e.g. US knowledge workers, 25–40" />
+              <Input id="market" placeholder="e.g. US knowledge workers, 25–40" value={market} onChange={(e) => setMarket(e.target.value)} />
             </div>
 
             <div className="space-y-3">
               <Label>Analysis depth</Label>
-              <RadioGroup defaultValue="deep" className="grid sm:grid-cols-2 gap-3">
+              <RadioGroup value={depth} onValueChange={setDepth} className="grid sm:grid-cols-2 gap-3">
                 {[
                   { v: "standard", t: "Standard", d: "~3 min · 1 credit" },
                   { v: "deep", t: "Deep", d: "~5 min · 2 credits", badge: "Recommended" },
@@ -78,10 +117,14 @@ function NewReportPage() {
 
             <div className="flex items-center justify-between pt-2 border-t border-border/60">
               <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Zap className="size-3.5 text-primary" /> 38 credits remaining
+                <Zap className="size-3.5 text-primary" /> AI generation coming soon
               </div>
-              <Button type="submit" className="bg-gradient-primary text-primary-foreground hover:opacity-90">
-                Generate report <ArrowRight className="size-4 ml-1" />
+              <Button
+                type="submit"
+                disabled={createReport.isPending}
+                className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+              >
+                {createReport.isPending ? "Creating…" : <>Create report <ArrowRight className="size-4 ml-1" /></>}
               </Button>
             </div>
           </form>
