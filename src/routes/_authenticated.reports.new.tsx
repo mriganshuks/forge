@@ -13,6 +13,8 @@ import { Sparkles, ArrowRight, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { generateBlueprint } from "@/lib/blueprint.functions";
 
 export const Route = createFileRoute("/_authenticated/reports/new")({
   head: () => ({ meta: [{ title: "New report — Forge" }] }),
@@ -25,7 +27,9 @@ function NewReportPage() {
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
   const [market, setMarket] = useState("");
+  const [industry, setIndustry] = useState("");
   const [depth, setDepth] = useState("deep");
+  const generate = useServerFn(generateBlueprint);
 
   const createReport = useMutation({
     mutationFn: async () => {
@@ -37,16 +41,18 @@ function NewReportPage() {
           title,
           idea,
           target_market: market || null,
-          status: "draft",
+          status: "generating",
         })
         .select("id")
         .single();
       if (error) throw error;
-      return data.id as string;
-    },
-    onSuccess: (id) => {
-      toast.success("Report created");
-      navigate({ to: "/reports/$reportId", params: { reportId: id } });
+      const reportId = data.id as string;
+      // Navigate immediately so user sees the loading state on the detail page
+      navigate({ to: "/reports/$reportId", params: { reportId } });
+      // Fire generation; report detail page polls status
+      generate({ data: { reportId, industry: industry || undefined, audience: market || undefined } })
+        .catch((e: Error) => toast.error(e.message ?? "Generation failed"));
+      return reportId;
     },
     onError: (e: Error) => toast.error(e.message),
   });
