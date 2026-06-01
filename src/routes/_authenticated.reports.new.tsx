@@ -91,9 +91,15 @@ function NewReportPage() {
               />
               <p className="text-xs text-muted-foreground">Tip: the more specific, the sharper the report.</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="market">Target market (optional)</Label>
-              <Input id="market" placeholder="e.g. US knowledge workers, 25–40" value={market} onChange={(e) => setMarket(e.target.value)} />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="industry">Industry (optional)</Label>
+                <Input id="industry" placeholder="e.g. Fintech, Health, SaaS" value={industry} onChange={(e) => setIndustry(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="market">Target audience (optional)</Label>
+                <Input id="market" placeholder="e.g. US knowledge workers, 25–40" value={market} onChange={(e) => setMarket(e.target.value)} />
+              </div>
             </div>
 
             <div className="space-y-3">
