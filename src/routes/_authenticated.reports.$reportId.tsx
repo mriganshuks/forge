@@ -18,8 +18,6 @@ import { generateBlueprint } from "@/lib/blueprint.functions";
 import {
   SummarySection, MarketSection, CompetitorsSection, MvpSection, GtmSection, RisksSection,
 } from "@/components/forge/BlueprintSections";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/reports/$reportId")({
   head: () => ({ meta: [{ title: "Report — Forge" }] }),
