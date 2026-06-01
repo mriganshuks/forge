@@ -44,6 +44,7 @@ function ReportPage() {
   const { reportId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const generate = useServerFn(generateBlueprint);
 
   const reportQuery = useQuery({
     queryKey: ["report", reportId],
@@ -56,7 +57,10 @@ function ReportPage() {
       if (error) throw error;
       return data as Report | null;
     },
+    refetchInterval: (q) => (q.state.data?.status === "generating" ? 2500 : false),
   });
+
+  const isGenerating = reportQuery.data?.status === "generating";
 
   const sectionsQuery = useQuery({
     queryKey: ["report-sections", reportId],
@@ -69,6 +73,21 @@ function ReportPage() {
       if (error) throw error;
       return (data ?? []) as Section[];
     },
+    refetchInterval: isGenerating ? 2500 : false,
+  });
+
+  const regenerate = useMutation({
+    mutationFn: async () => {
+      await supabase.from("reports").update({ status: "generating" }).eq("id", reportId);
+      queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      await generate({ data: { reportId } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      queryClient.invalidateQueries({ queryKey: ["report-sections", reportId] });
+      toast.success("Blueprint regenerated");
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Generation failed"),
   });
 
   const deleteReport = useMutation({
