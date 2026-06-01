@@ -207,12 +207,12 @@ Deliver via the deliver_blueprint tool. Be thorough but concise — each list it
     await supabase.from("report_sections").delete().eq("report_id", report.id);
 
     const sections = [
-      { section_type: "summary", title: "Overview", position: 0, content: parsed.summary },
-      { section_type: "market", title: "Market Opportunity", position: 1, content: parsed.market },
-      { section_type: "competitors", title: "Competitor Breakdown", position: 2, content: parsed.competitors },
-      { section_type: "mvp", title: "MVP Blueprint", position: 3, content: parsed.mvp },
-      { section_type: "gtm", title: "Go-To-Market Plan", position: 4, content: parsed.gtm },
-      { section_type: "risks", title: "Risk Analysis", position: 5, content: parsed.risks },
+      { section_type: "summary", title: "Overview", position: 0, content: parsed.summary as never },
+      { section_type: "market", title: "Market Opportunity", position: 1, content: parsed.market as never },
+      { section_type: "competitors", title: "Competitor Breakdown", position: 2, content: parsed.competitors as never },
+      { section_type: "mvp", title: "MVP Blueprint", position: 3, content: parsed.mvp as never },
+      { section_type: "gtm", title: "Go-To-Market Plan", position: 4, content: parsed.gtm as never },
+      { section_type: "risks", title: "Risk Analysis", position: 5, content: parsed.risks as never },
     ].map((s) => ({ ...s, report_id: report.id }));
 
     const { error: insertErr } = await supabase.from("report_sections").insert(sections);
