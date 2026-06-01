@@ -129,14 +129,14 @@ function NewReportPage() {
 
             <div className="flex items-center justify-between pt-2 border-t border-border/60">
               <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Zap className="size-3.5 text-primary" /> AI generation coming soon
+                <Zap className="size-3.5 text-primary" /> Powered by AI
               </div>
               <Button
                 type="submit"
                 disabled={createReport.isPending}
                 className="bg-gradient-primary text-primary-foreground hover:opacity-90"
               >
-                {createReport.isPending ? "Creating…" : <>Create report <ArrowRight className="size-4 ml-1" /></>}
+                {createReport.isPending ? "Creating…" : <>Generate blueprint <ArrowRight className="size-4 ml-1" /></>}
               </Button>
             </div>
           </form>
