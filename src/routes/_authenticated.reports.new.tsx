@@ -13,6 +13,8 @@ import { Sparkles, ArrowRight, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { generateBlueprint } from "@/lib/blueprint.functions";
 
 export const Route = createFileRoute("/_authenticated/reports/new")({
   head: () => ({ meta: [{ title: "New report — Forge" }] }),
@@ -25,7 +27,9 @@ function NewReportPage() {
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
   const [market, setMarket] = useState("");
+  const [industry, setIndustry] = useState("");
   const [depth, setDepth] = useState("deep");
+  const generate = useServerFn(generateBlueprint);
 
   const createReport = useMutation({
     mutationFn: async () => {
@@ -37,16 +41,18 @@ function NewReportPage() {
           title,
           idea,
           target_market: market || null,
-          status: "draft",
+          status: "generating",
         })
         .select("id")
         .single();
       if (error) throw error;
-      return data.id as string;
-    },
-    onSuccess: (id) => {
-      toast.success("Report created");
-      navigate({ to: "/reports/$reportId", params: { reportId: id } });
+      const reportId = data.id as string;
+      // Navigate immediately so user sees the loading state on the detail page
+      navigate({ to: "/reports/$reportId", params: { reportId } });
+      // Fire generation; report detail page polls status
+      generate({ data: { reportId, industry: industry || undefined, audience: market || undefined } })
+        .catch((e: Error) => toast.error(e.message ?? "Generation failed"));
+      return reportId;
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -85,9 +91,15 @@ function NewReportPage() {
               />
               <p className="text-xs text-muted-foreground">Tip: the more specific, the sharper the report.</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="market">Target market (optional)</Label>
-              <Input id="market" placeholder="e.g. US knowledge workers, 25–40" value={market} onChange={(e) => setMarket(e.target.value)} />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="industry">Industry (optional)</Label>
+                <Input id="industry" placeholder="e.g. Fintech, Health, SaaS" value={industry} onChange={(e) => setIndustry(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="market">Target audience (optional)</Label>
+                <Input id="market" placeholder="e.g. US knowledge workers, 25–40" value={market} onChange={(e) => setMarket(e.target.value)} />
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -117,14 +129,14 @@ function NewReportPage() {
 
             <div className="flex items-center justify-between pt-2 border-t border-border/60">
               <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Zap className="size-3.5 text-primary" /> AI generation coming soon
+                <Zap className="size-3.5 text-primary" /> Powered by AI
               </div>
               <Button
                 type="submit"
                 disabled={createReport.isPending}
                 className="bg-gradient-primary text-primary-foreground hover:opacity-90"
               >
-                {createReport.isPending ? "Creating…" : <>Create report <ArrowRight className="size-4 ml-1" /></>}
+                {createReport.isPending ? "Creating…" : <>Generate blueprint <ArrowRight className="size-4 ml-1" /></>}
               </Button>
             </div>
           </form>

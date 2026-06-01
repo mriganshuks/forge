@@ -10,11 +10,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  ArrowLeft, Download, Share2, Trash2, Sparkles,
-} from "lucide-react";
+import { ArrowLeft, Download, Share2, Trash2, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { generateBlueprint } from "@/lib/blueprint.functions";
+import {
+  SummarySection, MarketSection, CompetitorsSection, MvpSection, GtmSection, RisksSection,
+} from "@/components/forge/BlueprintSections";
 
 export const Route = createFileRoute("/_authenticated/reports/$reportId")({
   head: () => ({ meta: [{ title: "Report — Forge" }] }),
@@ -32,7 +35,7 @@ type Report = {
 
 type Section = {
   id: string;
-  section_type: "market" | "competitors" | "risks" | "gtm" | "summary";
+  section_type: "market" | "competitors" | "risks" | "gtm" | "summary" | "mvp";
   title: string | null;
   content: Record<string, unknown>;
 };
@@ -41,6 +44,7 @@ function ReportPage() {
   const { reportId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const generate = useServerFn(generateBlueprint);
 
   const reportQuery = useQuery({
     queryKey: ["report", reportId],
@@ -53,7 +57,10 @@ function ReportPage() {
       if (error) throw error;
       return data as Report | null;
     },
+    refetchInterval: (q) => (q.state.data?.status === "generating" ? 2500 : false),
   });
+
+  const isGenerating = reportQuery.data?.status === "generating";
 
   const sectionsQuery = useQuery({
     queryKey: ["report-sections", reportId],
@@ -66,6 +73,21 @@ function ReportPage() {
       if (error) throw error;
       return (data ?? []) as Section[];
     },
+    refetchInterval: isGenerating ? 2500 : false,
+  });
+
+  const regenerate = useMutation({
+    mutationFn: async () => {
+      await supabase.from("reports").update({ status: "generating" }).eq("id", reportId);
+      queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      await generate({ data: { reportId } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      queryClient.invalidateQueries({ queryKey: ["report-sections", reportId] });
+      toast.success("Blueprint regenerated");
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Generation failed"),
   });
 
   const deleteReport = useMutation({
@@ -125,6 +147,9 @@ function ReportPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => regenerate.mutate()} disabled={isGenerating || regenerate.isPending}>
+              <RefreshCw className={`size-4 mr-1.5 ${isGenerating ? "animate-spin" : ""}`} /> Regenerate
+            </Button>
             <Button variant="outline" size="sm"><Share2 className="size-4 mr-1.5" /> Share</Button>
             <Button size="sm" variant="outline"><Download className="size-4 mr-1.5" /> Export PDF</Button>
             <AlertDialog>
@@ -159,41 +184,67 @@ function ReportPage() {
           <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">{report.idea}</p>
         </Card>
 
-        <Tabs defaultValue="overview" className="mt-10">
-          <TabsList className="bg-card border border-border/60">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="market">Market</TabsTrigger>
-            <TabsTrigger value="competitors">Competitors</TabsTrigger>
-            <TabsTrigger value="risks">Risks</TabsTrigger>
-            <TabsTrigger value="gtm">GTM Plan</TabsTrigger>
-          </TabsList>
+        {isGenerating ? (
+          <Card className="mt-10 p-10 bg-gradient-card border-border/60 text-center">
+            <div className="mx-auto size-12 rounded-full bg-primary/10 border border-primary/20 grid place-items-center">
+              <Loader2 className="size-5 text-primary animate-spin" />
+            </div>
+            <h3 className="mt-5 text-lg font-semibold">Forging your blueprint…</h3>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              Our AI is analyzing the market, mapping competitors, scoping the MVP, and drafting your go-to-market plan. This usually takes 30–60 seconds.
+            </p>
+          </Card>
+        ) : report.status === "failed" ? (
+          <Card className="mt-10 p-10 bg-gradient-card border-border/60 text-center">
+            <h3 className="text-lg font-semibold">Generation failed</h3>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              Something went wrong while generating your blueprint. Give it another shot.
+            </p>
+            <Button onClick={() => regenerate.mutate()} className="mt-5 bg-gradient-primary text-primary-foreground hover:opacity-90">
+              <RefreshCw className="size-4 mr-1.5" /> Try again
+            </Button>
+          </Card>
+        ) : sections.length === 0 ? (
+          <Card className="mt-10 p-10 bg-gradient-card border-border/60 text-center">
+            <div className="mx-auto size-10 rounded-lg bg-primary/10 border border-primary/20 grid place-items-center">
+              <Sparkles className="size-4 text-primary" />
+            </div>
+            <h3 className="mt-4 font-medium">No analysis yet</h3>
+            <Button onClick={() => regenerate.mutate()} className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90">
+              Generate blueprint
+            </Button>
+          </Card>
+        ) : (
+          <Tabs defaultValue="overview" className="mt-10">
+            <TabsList className="bg-card border border-border/60 flex-wrap h-auto">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="market">Market</TabsTrigger>
+              <TabsTrigger value="competitors">Competitors</TabsTrigger>
+              <TabsTrigger value="mvp">MVP</TabsTrigger>
+              <TabsTrigger value="gtm">GTM Plan</TabsTrigger>
+              <TabsTrigger value="risks">Risks</TabsTrigger>
+            </TabsList>
 
-          {(["overview", "market", "competitors", "risks", "gtm"] as const).map((tab) => {
-            const key = tab === "overview" ? "summary" : tab;
-            const section = sectionOf(key as Section["section_type"]);
-            return (
-              <TabsContent key={tab} value={tab} className="mt-6">
-                <Card className="p-6 bg-gradient-card border-border/60">
-                  {section ? (
-                    <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">
-                      {JSON.stringify(section.content, null, 2)}
-                    </pre>
-                  ) : (
-                    <div className="text-center py-10">
-                      <div className="mx-auto size-10 rounded-lg bg-primary/10 border border-primary/20 grid place-items-center">
-                        <Sparkles className="size-4 text-primary" />
-                      </div>
-                      <h3 className="mt-4 font-medium">No analysis yet</h3>
-                      <p className="mt-1 text-sm text-muted-foreground max-w-sm mx-auto">
-                        AI generation isn't wired up yet. Once it runs, your {tab} insights will appear here.
-                      </p>
-                    </div>
-                  )}
-                </Card>
-              </TabsContent>
-            );
-          })}
-        </Tabs>
+            <TabsContent value="overview" className="mt-6">
+              {sectionOf("summary") ? <SummarySection content={sectionOf("summary")!.content} /> : null}
+            </TabsContent>
+            <TabsContent value="market" className="mt-6">
+              {sectionOf("market") ? <MarketSection content={sectionOf("market")!.content} /> : null}
+            </TabsContent>
+            <TabsContent value="competitors" className="mt-6">
+              {sectionOf("competitors") ? <CompetitorsSection content={sectionOf("competitors")!.content} /> : null}
+            </TabsContent>
+            <TabsContent value="mvp" className="mt-6">
+              {sectionOf("mvp") ? <MvpSection content={sectionOf("mvp")!.content} /> : null}
+            </TabsContent>
+            <TabsContent value="gtm" className="mt-6">
+              {sectionOf("gtm") ? <GtmSection content={sectionOf("gtm")!.content} /> : null}
+            </TabsContent>
+            <TabsContent value="risks" className="mt-6">
+              {sectionOf("risks") ? <RisksSection content={sectionOf("risks")!.content} /> : null}
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </AppShell>
   );
