@@ -35,7 +35,7 @@ type Report = {
 
 type Section = {
   id: string;
-  section_type: "market" | "competitors" | "risks" | "gtm" | "summary";
+  section_type: "market" | "competitors" | "risks" | "gtm" | "summary" | "mvp";
   title: string | null;
   content: Record<string, unknown>;
 };
