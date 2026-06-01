@@ -10,9 +10,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ArrowLeft, Download, Share2, Trash2, Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { generateBlueprint } from "@/lib/blueprint.functions";
 import {
-  ArrowLeft, Download, Share2, Trash2, Sparkles,
-} from "lucide-react";
+  SummarySection, MarketSection, CompetitorsSection, MvpSection, GtmSection, RisksSection,
+} from "@/components/forge/BlueprintSections";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
