@@ -74,8 +74,40 @@ function ReportPage() {
       if (error) throw error;
       return (data ?? []) as Section[];
     },
+    // Poll while generating so freshly-inserted sections show up immediately.
     refetchInterval: isGenerating ? 2500 : false,
   });
+
+  // When status flips out of "generating", force a one-shot sections refetch so
+  // a cached empty list during generation doesn't strand the user on a loader.
+  useEffect(() => {
+    if (reportQuery.data?.status === "completed" || reportQuery.data?.status === "failed") {
+      queryClient.invalidateQueries({ queryKey: ["report-sections", reportId] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+    }
+  }, [reportQuery.data?.status, queryClient, reportId]);
+
+  // Safety net: if the report has been "generating" for more than 3 minutes,
+  // mark it failed locally so the UI doesn't loop forever on an abandoned job.
+  useEffect(() => {
+    if (!isGenerating || !reportQuery.data) return;
+    const startedAt = new Date(reportQuery.data.created_at).getTime();
+    const elapsed = Date.now() - startedAt;
+    const remaining = 3 * 60_000 - elapsed;
+    if (remaining <= 0) {
+      supabase.from("reports").update({ status: "failed" }).eq("id", reportId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      });
+      return;
+    }
+    const t = setTimeout(() => {
+      supabase.from("reports").update({ status: "failed" }).eq("id", reportId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      });
+    }, remaining);
+    return () => clearTimeout(t);
+  }, [isGenerating, reportQuery.data, reportId, queryClient]);
+
 
   const regenerate = useMutation({
     mutationFn: async () => {
