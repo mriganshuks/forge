@@ -131,17 +131,31 @@ export const generateBlueprint = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("AI gateway is not configured");
+    if (!apiKey) {
+      console.error("[blueprint] LOVABLE_API_KEY missing");
+      throw new Error("AI gateway is not configured");
+    }
 
     const { data: report, error: reportErr } = await supabase
       .from("reports")
       .select("id, user_id, title, idea, target_market")
       .eq("id", data.reportId)
       .maybeSingle();
-    if (reportErr) throw new Error(reportErr.message);
+    if (reportErr) {
+      console.error("[blueprint] fetch report failed", reportErr);
+      throw new Error(reportErr.message);
+    }
     if (!report || report.user_id !== userId) throw new Error("Report not found");
 
     await supabase.from("reports").update({ status: "generating" }).eq("id", report.id);
+    console.log(`[blueprint] start report=${report.id}`);
+
+    // Helper to flip the report to a final state. Used in every failure path so
+    // the UI never gets stuck on "generating".
+    const markFailed = async (reason: string) => {
+      console.error(`[blueprint] FAILED report=${report.id} reason=${reason}`);
+      await supabase.from("reports").update({ status: "failed" }).eq("id", report.id);
+    };
 
     const systemPrompt = `You are Forge, a senior startup analyst advising founders. Produce a sharp, founder-focused, evidence-aware startup blueprint. Be concrete, specific, and avoid generic platitudes. Use realistic numbers and named examples where possible. Write in clear, confident prose.`;
 
@@ -156,6 +170,10 @@ ${data.audience || report.target_market ? `TARGET AUDIENCE: ${data.audience || r
 
 Deliver via the deliver_blueprint tool. Be thorough but concise — each list item one tight sentence.`;
 
+    // Cap the AI subrequest so we don't hang the worker indefinitely.
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), 90_000);
+
     let aiResp: Response;
     try {
       aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -164,6 +182,7 @@ Deliver via the deliver_blueprint tool. Be thorough but concise — each list it
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
+        signal: aiController.signal,
         body: JSON.stringify({
           model: "openai/gpt-5-mini",
           messages: [
@@ -175,53 +194,94 @@ Deliver via the deliver_blueprint tool. Be thorough but concise — each list it
         }),
       });
     } catch (e) {
-      await supabase.from("reports").update({ status: "failed" }).eq("id", report.id);
+      clearTimeout(aiTimeout);
+      console.error("[blueprint] AI fetch threw", e);
+      await markFailed("ai_fetch_error");
       throw new Error("Could not reach the AI service. Please try again.");
     }
+    clearTimeout(aiTimeout);
 
     if (!aiResp.ok) {
-      await supabase.from("reports").update({ status: "failed" }).eq("id", report.id);
+      const txt = await aiResp.text().catch(() => "");
+      console.error(`[blueprint] AI gateway non-2xx status=${aiResp.status} body=${txt.slice(0, 500)}`);
+      await markFailed(`ai_${aiResp.status}`);
       if (aiResp.status === 429) throw new Error("Rate limit reached. Try again in a moment.");
       if (aiResp.status === 402) throw new Error("AI credits exhausted. Add credits in Workspace settings.");
-      const txt = await aiResp.text().catch(() => "");
-      console.error("AI gateway error", aiResp.status, txt);
       throw new Error("The AI service returned an error.");
     }
 
-    const payload = await aiResp.json();
-    const call = payload.choices?.[0]?.message?.tool_calls?.[0];
+    const payload = await aiResp.json().catch((e) => {
+      console.error("[blueprint] AI response not JSON", e);
+      return null;
+    });
+    const call = payload?.choices?.[0]?.message?.tool_calls?.[0];
     if (!call?.function?.arguments) {
-      await supabase.from("reports").update({ status: "failed" }).eq("id", report.id);
+      console.error("[blueprint] no tool_call in AI response", JSON.stringify(payload)?.slice(0, 800));
+      await markFailed("no_tool_call");
       throw new Error("AI did not return a structured blueprint.");
     }
 
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(call.function.arguments);
-    } catch {
-      await supabase.from("reports").update({ status: "failed" }).eq("id", report.id);
+    } catch (e) {
+      console.error("[blueprint] tool_call arguments not JSON", e, String(call.function.arguments).slice(0, 800));
+      await markFailed("bad_json");
       throw new Error("AI returned malformed output.");
     }
 
-    // Replace any prior sections for idempotency
-    await supabase.from("report_sections").delete().eq("report_id", report.id);
+    // Build sections defensively: keep whatever the model returned, so a partially
+    // malformed response still saves useful content instead of failing the whole run.
+    const sectionSpecs = [
+      { key: "summary", section_type: "summary", title: "Overview", position: 0 },
+      { key: "market", section_type: "market", title: "Market Opportunity", position: 1 },
+      { key: "competitors", section_type: "competitors", title: "Competitor Breakdown", position: 2 },
+      { key: "mvp", section_type: "mvp", title: "MVP Blueprint", position: 3 },
+      { key: "gtm", section_type: "gtm", title: "Go-To-Market Plan", position: 4 },
+      { key: "risks", section_type: "risks", title: "Risk Analysis", position: 5 },
+    ] as const;
 
-    const sections = [
-      { section_type: "summary", title: "Overview", position: 0, content: parsed.summary as never },
-      { section_type: "market", title: "Market Opportunity", position: 1, content: parsed.market as never },
-      { section_type: "competitors", title: "Competitor Breakdown", position: 2, content: parsed.competitors as never },
-      { section_type: "mvp", title: "MVP Blueprint", position: 3, content: parsed.mvp as never },
-      { section_type: "gtm", title: "Go-To-Market Plan", position: 4, content: parsed.gtm as never },
-      { section_type: "risks", title: "Risk Analysis", position: 5, content: parsed.risks as never },
-    ].map((s) => ({ ...s, report_id: report.id }));
+    const sections = sectionSpecs
+      .filter((s) => parsed[s.key] && typeof parsed[s.key] === "object")
+      .map((s) => ({
+        report_id: report.id,
+        section_type: s.section_type,
+        title: s.title,
+        position: s.position,
+        content: parsed[s.key] as never,
+      }));
+
+    if (sections.length === 0) {
+      console.error("[blueprint] parsed AI output had no recognizable sections", Object.keys(parsed));
+      await markFailed("empty_sections");
+      throw new Error("AI returned an empty blueprint. Please try again.");
+    }
+
+    // Replace any prior sections for idempotency (only now that we know we have new ones).
+    const { error: delErr } = await supabase.from("report_sections").delete().eq("report_id", report.id);
+    if (delErr) {
+      console.error("[blueprint] delete prior sections failed", delErr);
+      await markFailed("delete_failed");
+      throw new Error(delErr.message);
+    }
 
     const { error: insertErr } = await supabase.from("report_sections").insert(sections);
     if (insertErr) {
-      await supabase.from("reports").update({ status: "failed" }).eq("id", report.id);
+      console.error("[blueprint] insert sections failed", insertErr);
+      await markFailed("insert_failed");
       throw new Error(insertErr.message);
     }
 
-    await supabase.from("reports").update({ status: "completed" }).eq("id", report.id);
+    const { error: completeErr } = await supabase
+      .from("reports")
+      .update({ status: "completed" })
+      .eq("id", report.id);
+    if (completeErr) {
+      console.error("[blueprint] mark completed failed", completeErr);
+      // Sections are saved; don't mark failed since data is there.
+      throw new Error("Generated, but couldn't update status. Refresh to see your blueprint.");
+    }
 
-    return { ok: true as const };
+    console.log(`[blueprint] DONE report=${report.id} sections=${sections.length}`);
+    return { ok: true as const, sections: sections.length };
   });
