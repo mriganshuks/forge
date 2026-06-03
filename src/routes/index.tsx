@@ -9,7 +9,7 @@ import { MarketingHeader } from "@/components/forge/MarketingHeader";
 import { MarketingFooter } from "@/components/forge/MarketingFooter";
 import {
   ArrowRight, Sparkles, Target, LineChart, Users, Zap, Shield, CheckCircle2,
-  TrendingUp, Layers, Globe, Star,
+  TrendingUp, Layers, Globe, Star, Quote,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -36,6 +36,7 @@ function Landing() {
       <Testimonials />
       <FAQ />
       <CTA />
+      <FounderMessage />
       <MarketingFooter />
     </div>
   );
@@ -318,6 +319,60 @@ function FAQ() {
           </AccordionItem>
         ))}
       </Accordion>
+    </section>
+  );
+}
+
+function FounderMessage() {
+  return (
+    <section className="mx-auto max-w-7xl px-6 pb-32">
+      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-card p-8 md:p-16 animate-fade-up">
+        <div className="absolute inset-0 bg-gradient-hero opacity-40" />
+        <div className="absolute top-6 left-8 md:top-10 md:left-16 text-primary/10">
+          <Quote className="size-16 md:size-24" fill="currentColor" />
+        </div>
+        <div className="relative max-w-3xl mx-auto">
+          <Badge variant="outline" className="mb-8 border-border/60 bg-card/60 backdrop-blur">
+            A Message from the Founder
+          </Badge>
+
+          <div className="space-y-6 text-muted-foreground leading-relaxed text-base md:text-lg">
+            <p>
+              Every great company begins with an idea.
+            </p>
+            <p>
+              Yet countless ideas never become reality, not because they lack potential, but because the path from idea to execution is often unclear, overwhelming, and time-consuming.
+            </p>
+            <p>
+              Forge was built to change that.
+            </p>
+            <p>
+              Our mission is to help builders, creators, and founders transform ideas into actionable plans with clarity and confidence. We believe innovation should be accessible to everyone, regardless of background, experience, or resources.
+            </p>
+            <p>
+              Forge is more than a tool. It is a step toward a future where anyone with a vision can build, learn, and create without unnecessary barriers.
+            </p>
+            <p>
+              We are just getting started, and our commitment remains the same: empower people to turn possibilities into reality.
+            </p>
+            <p>
+              Thank you for being part of this journey.
+            </p>
+          </div>
+
+          <div className="mt-12 pt-8 border-t border-border/40">
+            <div className="flex items-center gap-4">
+              <div className="size-12 rounded-full bg-gradient-primary grid place-items-center text-sm font-semibold text-primary-foreground">
+                MS
+              </div>
+              <div>
+                <div className="font-semibold text-foreground text-lg">Mriganshu K Singh</div>
+                <div className="text-sm text-muted-foreground">Founder, Forge</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
