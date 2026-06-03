@@ -9,7 +9,7 @@ import { MarketingHeader } from "@/components/forge/MarketingHeader";
 import { MarketingFooter } from "@/components/forge/MarketingFooter";
 import {
   ArrowRight, Sparkles, Target, LineChart, Users, Zap, Shield, CheckCircle2,
-  TrendingUp, Layers, Globe, Star,
+  TrendingUp, Layers, Globe, Star, Quote,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
