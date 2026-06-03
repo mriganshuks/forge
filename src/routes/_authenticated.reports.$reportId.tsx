@@ -173,7 +173,7 @@ function ReportPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => regenerate.mutate()} disabled={isGenerating || regenerate.isPending}>
+            <Button variant="outline" size="sm" onClick={() => regenerate.mutate(undefined)} disabled={isGenerating || regenerate.isPending}>
               <RefreshCw className={`size-4 mr-1.5 ${isGenerating ? "animate-spin" : ""}`} /> Regenerate
             </Button>
             <Button variant="outline" size="sm"><Share2 className="size-4 mr-1.5" /> Share</Button>
@@ -226,7 +226,7 @@ function ReportPage() {
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
               Something went wrong while generating your blueprint. Give it another shot.
             </p>
-            <Button onClick={() => regenerate.mutate()} className="mt-5 bg-gradient-primary text-primary-foreground hover:opacity-90">
+            <Button onClick={() => regenerate.mutate(undefined)} className="mt-5 bg-gradient-primary text-primary-foreground hover:opacity-90">
               <RefreshCw className="size-4 mr-1.5" /> Try again
             </Button>
           </Card>
@@ -236,7 +236,7 @@ function ReportPage() {
               <Sparkles className="size-4 text-primary" />
             </div>
             <h3 className="mt-4 font-medium">No analysis yet</h3>
-            <Button onClick={() => regenerate.mutate()} className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90">
+            <Button onClick={() => regenerate.mutate(undefined)} className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90">
               Generate blueprint
             </Button>
           </Card>
