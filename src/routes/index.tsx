@@ -36,6 +36,7 @@ function Landing() {
       <Testimonials />
       <FAQ />
       <CTA />
+      <FounderMessage />
       <MarketingFooter />
     </div>
   );
