@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AppShell } from "@/components/forge/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,6 +46,7 @@ function ReportPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const generate = useServerFn(generateBlueprint);
+  const autoStartedRef = useRef(false);
 
   const reportQuery = useQuery({
     queryKey: ["report", reportId],
@@ -87,41 +88,33 @@ function ReportPage() {
     }
   }, [reportQuery.data?.status, queryClient, reportId]);
 
-  // Safety net: if the report has been "generating" for more than 3 minutes,
-  // mark it failed locally so the UI doesn't loop forever on an abandoned job.
-  useEffect(() => {
-    if (!isGenerating || !reportQuery.data) return;
-    const startedAt = new Date(reportQuery.data.created_at).getTime();
-    const elapsed = Date.now() - startedAt;
-    const remaining = 3 * 60_000 - elapsed;
-    if (remaining <= 0) {
-      supabase.from("reports").update({ status: "failed" }).eq("id", reportId).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["report", reportId] });
-      });
-      return;
-    }
-    const t = setTimeout(() => {
-      supabase.from("reports").update({ status: "failed" }).eq("id", reportId).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["report", reportId] });
-      });
-    }, remaining);
-    return () => clearTimeout(t);
-  }, [isGenerating, reportQuery.data, reportId, queryClient]);
-
-
   const regenerate = useMutation({
-    mutationFn: async () => {
-      await supabase.from("reports").update({ status: "generating" }).eq("id", reportId);
+    mutationFn: async (inputs?: { industry?: string; audience?: string }) => {
+      const { error } = await supabase.from("reports").update({ status: "generating" }).eq("id", reportId);
+      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["report", reportId] });
-      await generate({ data: { reportId } });
+      await generate({ data: { reportId, industry: inputs?.industry, audience: inputs?.audience } });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["report", reportId] });
       queryClient.invalidateQueries({ queryKey: ["report-sections", reportId] });
       toast.success("Blueprint regenerated");
     },
-    onError: (e: Error) => toast.error(e.message ?? "Generation failed"),
+    onError: async (e: Error) => {
+      await supabase.from("reports").update({ status: "failed" }).eq("id", reportId);
+      queryClient.invalidateQueries({ queryKey: ["report", reportId] });
+      toast.error(e.message ?? "Generation failed");
+    },
   });
+
+  useEffect(() => {
+    if (autoStartedRef.current || reportQuery.data?.status !== "draft" || sectionsQuery.isLoading) return;
+    autoStartedRef.current = true;
+    const saved = sessionStorage.getItem(`forge-blueprint-inputs:${reportId}`);
+    const inputs = saved ? JSON.parse(saved) as { industry?: string; audience?: string } : undefined;
+    sessionStorage.removeItem(`forge-blueprint-inputs:${reportId}`);
+    regenerate.mutate(inputs);
+  }, [reportQuery.data?.status, sectionsQuery.isLoading, reportId, regenerate]);
 
   const deleteReport = useMutation({
     mutationFn: async () => {
