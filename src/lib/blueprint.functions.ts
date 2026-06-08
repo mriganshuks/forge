@@ -184,7 +184,7 @@ Deliver via the deliver_blueprint tool. Be thorough but concise — each list it
         },
         signal: aiController.signal,
         body: JSON.stringify({
-          model: "openai/gpt-5-mini",
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
